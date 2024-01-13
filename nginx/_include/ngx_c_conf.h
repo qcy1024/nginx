@@ -17,7 +17,7 @@ private:
     static CConfig *m_instance;
 
 public:
-    static CConfig* GetInstance()
+    static CConfig* getInstance()
     {
         if( m_instance == NULL )
         {
@@ -42,13 +42,18 @@ public:
 
 //以上代码将CConfig实现为一个单例类，以下代码实现配置文件的读取和解析
 public:
-    bool Load(const char* pconfName);   //装载配置文件
-    char* GetString(const char* p_itemname);
-    int GetIntDefault(const char* p_itemname,const int def);
+    /*接口*/
+
+    //装载配置文件到内存
+    bool load(const char* pconfName);   
+    //给出配置项的名字p_itemname,返回配置项的内容的字符串
+    char* getString(const char* p_itemname);
+    //给出配置项的名字p_itemname,返回配置项的内容的int值
+    int getIntDefault(const char* p_itemname,const int def);
 
 public:
     //LPCConfItem是CConfItem的指针类型，CConfItem中有两个字符串变量，分别表示条目名字和条目内容
-    std::vector<LPCConfItem> m_ConfigItemList;  //存储配置信息的列表
+    std::vector<LPCConfItem> m_configItemList;  //存储配置信息的列表
 
 
 };

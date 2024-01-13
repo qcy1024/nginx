@@ -20,18 +20,18 @@ CConfig::CConfig()
 CConfig::~CConfig()
 {
     std::vector<LPCConfItem>::iterator pos;
-    for( pos = m_ConfigItemList.begin(); pos!= m_ConfigItemList.end(); ++pos  )
+    for( pos = m_configItemList.begin(); pos!= m_configItemList.end(); ++pos  )
     {
         delete (*pos);
     }
-    m_ConfigItemList.clear();
+    m_configItemList.clear();
 }
 
 //装载配置文件
 //这个函数实际上就是把配置文件nginx.conf中的所有带等号=的条目放到了CConfig的单例
 //对象中的成员列表m_ConfigItemList中。
 //***我们假设配置文件符合语法格式，只有多余的空格、制表符、回车换行。
-bool CConfig::Load(const char* pconfName)
+bool CConfig::load(const char* pconfName)
 {
     //FILE是C标准<stdio.h>定义的一种数据类型，包含了有关文件的信息。
     FILE* fp;
@@ -59,16 +59,44 @@ bool CConfig::Load(const char* pconfName)
             //char *strncpy(char *dest, const char *src, size_t n) 把 src 所指向的字符串
             //复制到 dest，最多复制 n 个字符。当 src 的长度小于 n 时，dest 的剩余部分将用空字节填充
             CConfItem* tmpConfItem = new CConfItem;
+            memset(tmpConfItem,0,sizeof(tmpConfItem));
             strncpy(tmpConfItem->ItemName,linebuf,equal_sign_pos-linebuf);
             strcpy(tmpConfItem->ItemContent,equal_sign_pos+1);
 
             Rtrim(tmpConfItem->ItemName);
             Ltrim(tmpConfItem->ItemContent);
-            m_ConfigItemList.push_back(tmpConfItem);
+            m_configItemList.push_back(tmpConfItem);
         }
         
     }
     //end while( !feof(fp) )
     fclose(fp);
     return 1;
+}
+
+char* CConfig::getString(const char* p_itemname)
+{
+    std::vector<LPCConfItem>::iterator pos;
+    for( pos = m_configItemList.begin(); pos != m_configItemList.end(); ++pos )
+    {
+        if( strcmp( (*pos)->ItemName,p_itemname ) == 0 )
+        {
+            return (*pos)->ItemContent;
+        }
+    }
+    return NULL;
+}
+
+int CConfig::getIntDefault(const char* p_itemname,const int def)
+{
+    std::vector<LPCConfItem>::iterator pos;
+    for( pos = m_configItemList.begin(); pos != m_configItemList.end(); ++pos )
+    {
+        if( strcmp( (*pos)->ItemName,p_itemname ) == 0 )
+        {
+            return atoi( (*pos)->ItemContent );
+        }
+    }
+    //没找到返回默认值
+    return def;
 }
