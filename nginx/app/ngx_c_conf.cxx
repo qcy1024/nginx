@@ -2,10 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <vector>
-
+#include "ngx_global.h"
 #include "ngx_c_conf.h"
-void Ltrim(char*);
-void Rtrim(char*);
+
 
 //定义并初始化CConfig的静态成员
 CConfig *CConfig::m_instance = NULL;

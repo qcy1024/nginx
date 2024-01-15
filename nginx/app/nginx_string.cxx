@@ -39,4 +39,42 @@ void Rtrim(char* s)
 
 }
 
+//输入字符串str,将其翻转
+void inverse_string(char* str)
+{
+    int len = strlen(str);
+    //是i<len/2，不能是i<=len/2
+    for( int i=0; i<len/2; i++ )
+    {
+        char t = str[i];
+        str[i] = str[len-i-1];
+        str[len-i-1] = t;
+    }
+}
+
+//给出int变量num，将其转换成字符串，存在以str为起始地址的串中
+void int_to_string(int num,char* str,int max_len)
+{
+    char* iter = str;
+    int t;
+    int cur_len = 0;
+    if( num == 0 )
+    {
+        *iter++ = '0';
+        *iter++ = '\0';
+        return ;
+    }
+    while( num && cur_len < max_len )
+    {
+        t = num % 10;
+        num /= 10;
+        *iter++ = t + '0';
+        cur_len++;
+    }
+    *iter++ = '\0';
+    inverse_string(str);
+}
+
+
+
 #endif

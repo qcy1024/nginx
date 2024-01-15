@@ -10,8 +10,13 @@ char* gp_envmem = NULL;
 //g_environlen保存environ[]的大小
 int g_environlen = 0;
 
+
+
 int main(int argc,char* argv[],char* environ[])
 {
+    /*测试nginx_log_stderr函数*/
+    //nginx_log_stderr(0,"333：%d, ,321: ,%d.,  一个字符串测试：%s, %d,,,... %s,,,...\n",333,321,"Hello,World!",456,"ttt");
+
     //将命令行参数指针保存在char**变量g_os_argv里面
     g_os_argv = (char**) argv;
     
@@ -31,7 +36,7 @@ int main(int argc,char* argv[],char* environ[])
         return 1;
     }
     
-    // /*读配置文件的测试*/
+    /*读配置文件的测试*/
     // int i = 0;
     // for( std::vector<LPCConfItem>::iterator it = p_config->m_configItemList.begin(); it != p_config->m_configItemList.end(); ++it )
     // {
