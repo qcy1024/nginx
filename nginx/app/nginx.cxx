@@ -1,6 +1,6 @@
 #include "ngx_global.h"
 #include "ngx_c_conf.h"
-#include <cstdio>
+#include <stdio.h>
 #include <unistd.h>
 
 //g_os_argv保存命令行参数argv[]
@@ -28,14 +28,14 @@ int main(int argc,char* argv[],char* environ[])
 
     //获取一个单例类对象指针，用于读取并解析配置文件
     CConfig *p_config = CConfig::getInstance();
-    
     //CConfig的单例类对象p_config实际上就通过其成员m_ConfigItrmList保存的所有的配置文件条目。
     if( p_config->load("nginx.conf") == false )
     {
-        printf("配置文件载入失败，退出！\n");
+        ngx_log_stderr(0,"配置文件%s载入失败，退出！\n","nginx.conf");
         return 1;
     }
     
+
     /*读配置文件的测试*/
     // int i = 0;
     // for( std::vector<LPCConfItem>::iterator it = p_config->m_configItemList.begin(); it != p_config->m_configItemList.end(); ++it )
@@ -48,6 +48,12 @@ int main(int argc,char* argv[],char* environ[])
     // printf("条目%s，内容是%d\n条目%s，内容是%s\n","ListenPort",p_config->getIntDefault("ListenPort",10),
     //     "DBInfo",p_config->getString("DBInfo"));
 
+
+    ngx_log_init(p_config);
+    /*测试ngx_log_init()*/
+    printf("日志文件已经打开，文件描述符为%d, 日志等级为%d\n",ngx_log.log_fd,ngx_log.log_level);
+
+    ngx_logfile_print(2,3,"asfd%s\n","yyyy");
 
     for(;;)
     {

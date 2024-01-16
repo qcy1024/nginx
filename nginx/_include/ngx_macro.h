@@ -23,6 +23,6 @@
 #define NGX_LOG_INFO        7       //信息【info】
 #define NGX_LOG_DEBUG       8       //调试【debug】
 
-#define NGX_ERROR_LOG_PATH  "logs/error1.log"   //存放日志的路径
+#define NGX_DEFAULT_LOG_PATH  "logs/error1.log"   //存放日志的路径
 
 #endif

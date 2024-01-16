@@ -1,6 +1,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <stdio.h>
+#include <iostream>
 #include "ngx_global.h"
 #include "ngx_macro.h"
 
@@ -8,6 +9,7 @@
 void ngx_fmt_process(char* bg_pos,char* end_pos,const char* fmt, va_list args )
 {
     if( end_pos <= bg_pos ) return ;
+    //printf("刚进入ngx_fmt_process,串fmt为%s\n",fmt);
     char* iter_dst = bg_pos;
     const char* iter_fmt = fmt;
 
@@ -54,18 +56,23 @@ void ngx_fmt_process(char* bg_pos,char* end_pos,const char* fmt, va_list args )
                     else {
                         return ;
                     }
-                }
+                    
+                }; break;
+                default : break;
             }
             iter_fmt++;
         }
+        //end if( *iter_fmt == '%' )
         else 
         {
             *iter_dst = *iter_fmt;
             iter_dst++;
             iter_fmt++;
         }
-    }
-    
+        //printf("一轮处理结束，此时的串为%s\n",bg_pos);
+    }//end while( *iter_fmt != '\0' && iter_dst < end_pos )
+
+    *iter_dst++ = '\0';    
     /*测试代码*/
     //printf("in ngx_fmt_process: 处理好的格式串为：%s\n",bg_pos);
 

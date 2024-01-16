@@ -10,7 +10,7 @@ void Ltrim(char* s)
 {
     char* pos = s;
     //找到第一个有效位置pos
-    while( *pos != 0 && ( *pos == ' ' || *pos == '\t' || *pos == '\n' ) )
+    while( *pos != 0 && ( *pos == ' ' || *pos == '\t' || *pos == '\n' || *pos == '\r' ) )
     {
         pos++;
     }
@@ -32,7 +32,8 @@ void Rtrim(char* s)
 {
     int len = strlen(s);
     char* pos = &s[len - 1];
-    while( pos != s && ( *pos == ' ' || *pos == '\t' || *pos == '\n' ) )
+    //注意，除换行符很重要！！！因为没有除换行符导致bug：打开日志文件失败，因为载入内存的日志文件名后面有个隐藏的换行符'\r'!!!!
+    while( pos != s && ( *pos == ' ' || *pos == '\t' || *pos == '\n' || *pos == '\r'  ) )
     {
         *pos-- = '\0';
     }

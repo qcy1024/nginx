@@ -73,6 +73,7 @@ bool CConfig::load(const char* pconfName)
     return 1;
 }
 
+//如果没找到这个配置项，则返回NULL
 char* CConfig::getString(const char* p_itemname)
 {
     std::vector<LPCConfItem>::iterator pos;
