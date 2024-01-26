@@ -26,6 +26,7 @@ int main(int argc,char* argv[],char* environ[])
     ngx_setproctitle("mynginx!!!");
 
 
+    //2）初始化失败就要直接退出的
     //获取一个单例类对象指针，用于读取并解析配置文件
     CConfig *p_config = CConfig::getInstance();
     //CConfig的单例类对象p_config实际上就通过其成员m_ConfigItrmList保存的所有的配置文件条目。
@@ -48,12 +49,16 @@ int main(int argc,char* argv[],char* environ[])
     // printf("条目%s，内容是%d\n条目%s，内容是%s\n","ListenPort",p_config->getIntDefault("ListenPort",10),
     //     "DBInfo",p_config->getString("DBInfo"));
 
-
+    //3）一些初始化函数准备放这里
     ngx_log_init(p_config);
     /*测试ngx_log_init()*/
-    printf("日志文件已经打开，文件描述符为%d, 日志等级为%d\n",ngx_log.log_fd,ngx_log.log_level);
+    //printf("日志文件已经打开，文件描述符为%d, 日志等级为%d\n",ngx_log.log_fd,ngx_log.log_level);
 
-    ngx_logfile_print(2,3,"asfd%s\n","yyyy");
+    if( ngx_init_signals() != 1 )
+    {
+        printf("信号初始化失败!\n");
+        return 1;
+    }
 
     for(;;)
     {

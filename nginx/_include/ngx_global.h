@@ -46,4 +46,6 @@ void Rtrim(char*);
 void ngx_log_init(CConfig* p_config);
 void ngx_logfile_print(int level,int err,const char* fmt,...);
 
+int ngx_init_signals();
+
 #endif
