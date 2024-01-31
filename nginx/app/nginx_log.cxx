@@ -27,7 +27,7 @@ void ngx_log_stderr(int err,const char* fmt,...)
     ngx_fmt_process(err_info,end_pos,fmt,args);
 
     //向标准错误STDERR_FILENO写入err_info的信息
-    write(STDERR_FILENO,err_info,end_pos-err_info);
+    write(STDERR_FILENO,err_info,end_pos-err_info); //(文件描述符，char*，串的最大长度)
 }
 
 //日志初始化函数，打开/创建日志文件，置全局变量ngx_log的值。

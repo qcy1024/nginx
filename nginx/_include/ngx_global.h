@@ -48,4 +48,6 @@ void ngx_logfile_print(int level,int err,const char* fmt,...);
 
 int ngx_init_signals();
 
+void ngx_master_process_cycle();
+
 #endif

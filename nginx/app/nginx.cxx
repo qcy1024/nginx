@@ -10,6 +10,9 @@ char* gp_envmem = NULL;
 //g_environlen保存environ[]的大小
 int g_environlen = 0;
 
+//和进程本身有关的全局量
+pid_t ngx_pid;          //当前进程的pid
+pid_t ngx_parent;       //父进程的pid   
 
 
 int main(int argc,char* argv[],char* environ[])
@@ -59,6 +62,9 @@ int main(int argc,char* argv[],char* environ[])
         printf("信号初始化失败!\n");
         return 1;
     }
+
+
+    ngx_master_process_cycle(); //不管是父进程还是子进程，正常工作期间都会在这个函数里死循环。
 
     for(;;)
     {
