@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <unistd.h>
-#include <signal.h>
 #include "ngx_c_conf.h"
 #include "ngx_global.h"
 
@@ -8,6 +7,7 @@ static void ngx_start_worker_processes(int threadnums);
 static int ngx_spawn_process(int inum,const char* pprocname);
 static void ngx_worker_process_cycle(int inum,const char* pprocname);
 static void ngx_worker_process_init(int inum);
+
 
 //main函数中，程序会在这个函数中死循环。
 void ngx_master_process_cycle()
@@ -32,7 +32,7 @@ void ngx_master_process_cycle()
     }
 
     CConfig* p_config = CConfig::getInstance();
-    int workprocess = p_config->getIntDefault("WorkerNum",1);
+    int workprocess = p_config->getIntDefault("WorkerProcesses",1);
     //调用这个函数来创建子进程
     ngx_start_worker_processes(workprocess);
 
@@ -44,9 +44,18 @@ void ngx_master_process_cycle()
     for(;;)
     {
         printf("这里是父进程\n");
-        //sigsuspend()函数根据指定的信号集&set设置新的阻塞信号集，并使进程阻塞在sigsuspend()处。
-        sigsuspend(&set);
+        //sigsuspend()是master进程的for循环里用到的一个主要函数。sigsuspend()函数根据指定的信号集&set设置新的阻塞信号集，并使进程阻塞在
+        //sigsuspend()处，等待一个信号。此时进程是挂起状态，不占cpu时间，只有收到信号才会被唤醒。所以，此时master进程完全靠信号驱动干活。
         
+        //收到一个信号s1后，就回去执行s1的信号处理程序，执行完之后，sigsuspend()返回，并将进程的信号屏蔽集设置为调用suspend()之前，
+        //然后程序继续往下走。
+        //sigsuspend()一定程度上是用来取代sigprocmask()。因为sigprocmask()不能处理
+        //这种情况：正在屏蔽某些信号的时候，来了该信号。而sigsuspend()是原子操作，就可以处理这种情况。实际上，sigsuspend()的一系列操作
+        //中，就包含了对sigprocmask()的调用。
+        //ngx_worker_process_init中通过sigemptyset()取消了子进程对信号的屏蔽，父进程则在这里通过sigsuspend()取消对信号的屏蔽。
+        sigsuspend(&set);   //这个函数其中一部分功能有点向sigprocmask(SIG_SETMASK,&set,NULL)
+        printf("执行到suspend()下边来了\n");
+
     }
 }
 
@@ -93,8 +102,9 @@ static void ngx_worker_process_cycle(int inum,const char* pprocname)
     //做一些创建子进程的初始化工作，将来可能再新加一些内容，所以将初始化工作写成一个函数
     ngx_worker_process_init(inum);
     ngx_setproctitle(pprocname);
+    ngx_process = NGX_PROCESS_WORKER;
 
-
+    //子进程会一直在这个for里面死循环干活。
     for(;;)
     {
         printf("这里是子进程%d\n",inum);
@@ -107,6 +117,8 @@ static void ngx_worker_process_init(int inum)
     sigset_t set;
     sigemptyset(&set);
     //标志SIG_SETMASK：将blocked设置为set。这里就是不再阻塞任何信号。
+    //由父进程fork出来的子进程，与父进程的内存映像是完全一样的，因此，其阻塞的信号集与父进程也是一样的；
+    //我们在之前创建进程之前屏蔽了好多信号，在子进程创建好了之后，将这些信号恢复。
     if( sigprocmask(SIG_SETMASK,&set,NULL) == -1 )
     {
         printf("ngx_worker_process_init()中sigprocmask()失败!\n");

@@ -1,7 +1,7 @@
 #include "ngx_global.h"
 #include "ngx_c_conf.h"
 #include <stdio.h>
-#include <unistd.h>
+
 
 //g_os_argv保存命令行参数argv[]
 char** g_os_argv;
@@ -12,8 +12,12 @@ int g_environlen = 0;
 
 //和进程本身有关的全局量
 pid_t ngx_pid;          //当前进程的pid
-pid_t ngx_parent;       //父进程的pid   
+pid_t ngx_parent;       //当前进程的父进程的pid   
 
+int g_daemonized = 0;   //标志进程是否启用了守护进程模式
+
+int ngx_process;        //进程类型，比如worker进程，master进程等。
+sig_atomic_t ngx_reap;  //sig_atomic_t是系统定义的一种原子类型。
 
 int main(int argc,char* argv[],char* environ[])
 {
@@ -28,6 +32,7 @@ int main(int argc,char* argv[],char* environ[])
     //将进程的标题设置为mynginx!!!
     ngx_setproctitle("mynginx!!!");
 
+    ngx_process = NGX_PROCESS_MASTER;
 
     //2）初始化失败就要直接退出的
     //获取一个单例类对象指针，用于读取并解析配置文件
@@ -36,7 +41,7 @@ int main(int argc,char* argv[],char* environ[])
     if( p_config->load("nginx.conf") == false )
     {
         ngx_log_stderr(0,"配置文件%s载入失败，退出！\n","nginx.conf");
-        return 1;
+        return -1;
     }
     
 
@@ -54,16 +59,37 @@ int main(int argc,char* argv[],char* environ[])
 
     //3）一些初始化函数准备放这里
     ngx_log_init(p_config);
-    /*测试ngx_log_init()*/
-    //printf("日志文件已经打开，文件描述符为%d, 日志等级为%d\n",ngx_log.log_fd,ngx_log.log_level);
-
     if( ngx_init_signals() != 1 )
     {
         printf("信号初始化失败!\n");
-        return 1;
+        return -1;
     }
 
+    //4)一些不好归类的其他代码放在这里
 
+
+    //5)创建守护进程
+    if( p_config->getIntDefault("Daemon",0) == 1 )
+    {
+        int ret = nginx_daemon();     //父进程返回1，子进程返回0，出错返回-1
+        if( ret == -1 )
+        {
+            printf("main中，创建守护进程失败\n");
+            return -1;
+        }
+        //父进程的分支
+        else if( ret == 1 )
+        {
+            return -1;
+        }
+        else if( ret == 0 )
+        {
+            g_daemonized = 1;
+        }
+
+    }
+
+    //6)正式开始的主工作流程，主流程一致在下边这个函数里循环，暂时不会走下来，资源释放什么的日后再慢慢完善和考虑
     ngx_master_process_cycle(); //不管是父进程还是子进程，正常工作期间都会在这个函数里死循环。
 
     for(;;)

@@ -1,6 +1,14 @@
 #ifndef __NGX_GLOBAL_H__ 
 #define __NGX_GLOBAL_H__ 
 #include <stdarg.h>
+#include <unistd.h>
+#include <signal.h>
+#include <sys/wait.h>
+#include <errno.h>
+#include <stdio.h>
+
+#define NGX_PROCESS_MASTER 0    //master进程
+#define NGX_PROCESS_WORKER 1    //worker进程
 
 typedef struct 
 {
@@ -30,6 +38,16 @@ class CConfig;
 
 extern ngx_log_t ngx_log;
 
+extern pid_t ngx_pid;          //当前进程的pid
+extern pid_t ngx_parent;       //父进程的pid   
+
+extern int g_daemonized;   //标志进程是否启用了守护进程模式
+
+extern int ngx_process;        //进程类型，比如worker进程，master进程等。
+
+extern sig_atomic_t ngx_reap;  //sig_atomic_t是系统定义的一种原子类型。
+
+
 /*函数声明*/
 
 
@@ -49,5 +67,7 @@ void ngx_logfile_print(int level,int err,const char* fmt,...);
 int ngx_init_signals();
 
 void ngx_master_process_cycle();
+
+int nginx_daemon();
 
 #endif
