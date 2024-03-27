@@ -1,7 +1,7 @@
 #include "ngx_global.h"
 #include "ngx_c_conf.h"
 #include <stdio.h>
-
+#include "ngx_c_socket.h"
 
 //g_os_argv保存命令行参数argv[]
 char** g_os_argv;
@@ -9,6 +9,9 @@ char** g_os_argv;
 char* gp_envmem = NULL;
 //g_environlen保存environ[]的大小
 int g_environlen = 0;
+
+//socket相关
+CSocket g_socket;       //socket全局对象
 
 //和进程本身有关的全局量
 pid_t ngx_pid;          //当前进程的pid
@@ -18,6 +21,8 @@ int g_daemonized = 0;   //标志进程是否启用了守护进程模式
 
 int ngx_process;        //进程类型，比如worker进程，master进程等。
 sig_atomic_t ngx_reap;  //sig_atomic_t是系统定义的一种原子类型。
+
+
 
 int main(int argc,char* argv[],char* environ[])
 {
@@ -65,6 +70,13 @@ int main(int argc,char* argv[],char* environ[])
         return -1;
     }
 
+    
+    if( g_socket.Initialize() == false )
+    {
+        printf("main中，g_socket.Initialize()==false成立了！\n");
+        return 1;
+    }
+
     //4)一些不好归类的其他代码放在这里
 
 
@@ -77,7 +89,7 @@ int main(int argc,char* argv[],char* environ[])
             printf("main中，创建守护进程失败\n");
             return -1;
         }
-        //父进程的分支
+        //父进程的分支,直接退出
         else if( ret == 1 )
         {
             return -1;
@@ -101,4 +113,5 @@ int main(int argc,char* argv[],char* environ[])
 
     return 0;
 }
+
 

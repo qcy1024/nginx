@@ -73,7 +73,7 @@ bool CConfig::load(const char* pconfName)
     return 1;
 }
 
-//如果没找到这个配置项，则返回NULL
+//接受字符串类型的配置项名字，返回配置项的内容。如果没找到这个配置项，则返回NULL
 char* CConfig::getString(const char* p_itemname)
 {
     std::vector<LPCConfItem>::iterator pos;
@@ -87,6 +87,7 @@ char* CConfig::getString(const char* p_itemname)
     return NULL;
 }
 
+//接受字符串类型的配置项名字，从配置项名字获取int型的配置项内容
 int CConfig::getIntDefault(const char* p_itemname,const int def)
 {
     std::vector<LPCConfItem>::iterator pos;
@@ -100,3 +101,4 @@ int CConfig::getIntDefault(const char* p_itemname,const int def)
     //没找到返回默认值
     return def;
 }
+
