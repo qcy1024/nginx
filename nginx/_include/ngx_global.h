@@ -6,6 +6,11 @@
 #include <sys/wait.h>
 #include <errno.h>
 #include <stdio.h>
+#include <string.h>
+#include <time.h>
+#include <arpa/inet.h>
+#include <fcntl.h>
+
 
 #define NGX_PROCESS_MASTER 0    //master进程
 #define NGX_PROCESS_WORKER 1    //worker进程

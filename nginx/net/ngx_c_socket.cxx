@@ -25,6 +25,12 @@ CSocket::~CSocket()
     m_ListenSocketList.clear();
 }
 
+//建立新连接专用函数，当新连接进入时，本函数会被ngx_epoll_process_events()所调用
+void CSocket::ngx_event_accept(lpngx_connection_t oldc)
+{
+    
+}
+
 //初始化函数【】fork()子进程之前调用这个函数
 //成功返回true，失败返回false
 bool CSocket::Initialize()
@@ -33,12 +39,17 @@ bool CSocket::Initialize()
     return reco;
 }
 
+void CSocket::ReadConf()
+{
+    CConfig* p_config = CConfig::getInstance();
+    m_worker_connections = p_config->getIntDefault("worker_connections",1024);
+    m_ListenPortCount = p_config->getIntDefault("ListenPortCount",1);
+    return ;
+}
+
 //在配置文件指定的所有端口上开始监听
 bool CSocket::ngx_open_listening_sockets()
 {
-    CConfig* p_config = CConfig::getInstance();
-    m_ListenPortCount = p_config->getIntDefault("ListenPortCount",m_ListenPortCount);
-
     //printf("m_ListenPortCount是：%d\n",m_ListenPortCount);
 
     int isock;                          //socket
@@ -136,5 +147,113 @@ void CSocket::ngx_close_listening_sockets()
         printf("监听端口%d已关闭\n",m_ListenSocketList[i]->port);
     }
     return ;
+}
+
+int CSocket::ngx_epoll_init()
+{
+    //（1）调用epoll_create()
+    m_epollhandle = epoll_create(m_worker_connections);
+
+    if( m_epollhandle == -1 )
+    {
+        printf("CSocket::ngx_epoll_init()中，epoll_create()失败！\n");
+        exit(2);
+    }
+
+    //（2）创建连接池
+    m_connection_n = m_worker_connections;                  //连接池大小
+    m_pconnections = new ngx_connection_t[m_connection_n];  //把连接池new出来，连接池数组中每一个元素是一个连接
+
+    int i = connection_n;                       //连接池中连接数
+    lpngx_connection_t next = NULL;
+    lpngx_connection_t c = m_pconnections;      //连接池数组首地址
+
+    //从后往前遍历连接池的每一项，这个do-while循环对连接池进行初始化。
+    do
+    {
+        i--;
+        c[i].data = next;
+        c[i].fd = -1;
+        c[i].instance = 1;
+        c[i].iCurrsequence = 0;
+
+        next = &c[i];
+    } while(i);
+    m_pfree_connections = next;                 //设置空闲连接链表头指针为m_pfree_connections
+    m_free_connection_n = m_connection_n;       //空闲连接链表长度，刚刚初始化时没有连接，全是空闲的。
+
+    //(3)遍历所有监听端口
+    for( pos=m_ListenSocketList.begin(); pos!=m_ListenSocketList.end(); ++pos )
+    {
+        //从连接池中获取一个空闲连接对象，参数是监听套接字队列中的一项，表示一个服务器正在监听的端口的套接字描述符
+        c = ngx_get_connection((*pos)->fd);
+        if( c == NULL )
+        {
+            //初始化的时候，连接池一定不是空的，如果空，说明有错误。
+            printf("CSocket::ngx_close_listening_sockets()中ngx_get_connection失败!\n");
+            exit(2);
+        }
+        c->listening = *pos;                //连接类型中的监听类型对象为该监听对象，即连接对象 和 监听对象 关联，方便通过连接对象找到监听对象
+        (*pos)->connection = c;             //监听对象 和 连接对象 关联，方便通过监听对象找到连接对象
+
+        //rev->accept = 1;                 
+        
+        //对监听端口的读事件设置处理函数，因为监听端口是用来等待客户端连接发送三次握手的，所以监听端口关心的就是读事件。
+        c->rhandler = &CSocket::ngx_event_accept;
+        
+        //ngx_epoll_add_event往socket上增加监听事件。
+        if( ngx_epoll_add_event((*pos->fd),             //套接字描述符
+                                1,0,                    //读，写（只关心读事件，所以读，写分别为1，0）
+                                0,                      //其他补充标记
+                                EPOLL_CTL_ADD,          //事件类型为增加
+                                c                       //连接池中的连接
+                               ) == -1 )
+        {
+            exit(2);
+        }
+        return 1;
+
+
+    }
+
+}
+
+
+int CSocket::ngx_epoll_add_event(int fd,
+                                int readevent, int writeevent,
+                                uint32_t otherflag,
+                                uint32_t eventtype,
+                                lpngx_connection_t c
+                                )
+{
+    struct epoll_event ev;      //epoll_event是系统定义的类型
+    memset(&ev,0,sizeof(ev));
+
+    if( readevent == 1 )
+    {
+        //EPOLLIN是读事件，也即是ready read；EPOLLRDHUP是客户端的关闭连接事件
+        ev.events = EPOLLIN|EPOLLRDHUP;     
+
+    }
+    else 
+    {
+
+    }
+
+    if( otherflag != 0 )
+    {
+        ev.events |= otherflag;
+    }
+
+    //data字段用于携带事件相关的用户数据。data是一个union，可以是一个指针或一个文件描述符（分别是ptr及fd）
+    //c->instance是那个位域。因为任何指针变量的最后一位一定是0，这个按位或运算就使得ptr保存了指针地址以及这个位域是1还是0的信息。
+    ev.data.ptr = (void*)( (uintptr_t)c | c->instance );        
+
+    if( epoll_ctl(m_epollhandle,eventtype,fd,&ev) == -1 )
+    {
+        printf("CSocket::ngx_epoll_add_event()中，epoll_ctl()失败！\n");
+        return -1;
+    }
+    return 1;
 }
 

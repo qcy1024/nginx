@@ -108,6 +108,7 @@ static void ngx_worker_process_cycle(int inum,const char* pprocname)
     for(;;)
     {
         printf("这里是子进程%d\n",inum);
+        
         sleep(1);
     }
 }
@@ -123,5 +124,11 @@ static void ngx_worker_process_init(int inum)
     {
         printf("ngx_worker_process_init()中sigprocmask()失败!\n");
     }
+
+    //初始化epoll相关内容，同时往监听socket上添加监听事件
+    //该函数完成的内容：调用epoll_create()、创建连接池、把每一个监听端口的套接字描述符加入到epoll中去，并设置读事件为关注事件
+    g_socket.ngx_epoll_init();
+
+    return ;
 }
 

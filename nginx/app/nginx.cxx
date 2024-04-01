@@ -70,7 +70,7 @@ int main(int argc,char* argv[],char* environ[])
         return -1;
     }
 
-    
+    //监听端口初始化
     if( g_socket.Initialize() == false )
     {
         printf("main中，g_socket.Initialize()==false成立了！\n");
