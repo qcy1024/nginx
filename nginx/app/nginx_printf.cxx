@@ -1,7 +1,4 @@
-#include <stdarg.h>
-#include <string.h>
-#include <stdio.h>
-#include <iostream>
+
 #include "ngx_global.h"
 #include "ngx_macro.h"
 

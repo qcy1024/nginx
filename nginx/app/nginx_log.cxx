@@ -1,12 +1,7 @@
 #include "ngx_global.h"
 #include "ngx_macro.h"
 #include "ngx_c_conf.h"
-#include <stdlib.h>
-#include <string.h>
-#include <stdarg.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <stdio.h>
+
 
 //全局变量ngx_log中有两个成员：log_fd以及log_level
 ngx_log_t ngx_log;

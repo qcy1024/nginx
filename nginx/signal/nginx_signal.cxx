@@ -1,7 +1,4 @@
 /*为若干信号注册了信号处理函数；编写了信号处理函数ngx_signal_handler*/
-
-#include <string.h>
-#include <stdlib.h>
 #include "ngx_global.h"
 
 typedef struct 

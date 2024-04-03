@@ -1,8 +1,6 @@
-#include <unistd.h>
-#include <fcntl.h>
+
 #include "ngx_global.h"
-#include <stdio.h>
-#include <sys/stat.h>
+
 
 int nginx_daemon()
 {

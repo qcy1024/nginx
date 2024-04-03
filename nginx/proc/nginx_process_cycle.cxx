@@ -1,7 +1,7 @@
-#include <stdio.h>
-#include <unistd.h>
+
 #include "ngx_c_conf.h"
 #include "ngx_global.h"
+#include "ngx_c_socket.h"
 
 static void ngx_start_worker_processes(int threadnums);
 static int ngx_spawn_process(int inum,const char* pprocname);
@@ -107,9 +107,9 @@ static void ngx_worker_process_cycle(int inum,const char* pprocname)
     //子进程会一直在这个for里面死循环干活。
     for(;;)
     {
-        printf("这里是子进程%d\n",inum);
-        
-        sleep(1);
+        // printf("这里是子进程%d\n",inum);
+        // sleep(1);
+        g_socket.ngx_process_events_and_timers();            //处理网络事件和定时器事件
     }
 }
 

@@ -1,7 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <vector>
+
 #include "ngx_global.h"
 #include "ngx_c_conf.h"
 

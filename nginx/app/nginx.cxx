@@ -1,7 +1,8 @@
 #include "ngx_global.h"
 #include "ngx_c_conf.h"
-#include <stdio.h>
 #include "ngx_c_socket.h"
+
+CConfig *p_config;
 
 //g_os_argv保存命令行参数argv[]
 char** g_os_argv;
@@ -41,7 +42,7 @@ int main(int argc,char* argv[],char* environ[])
 
     //2）初始化失败就要直接退出的
     //获取一个单例类对象指针，用于读取并解析配置文件
-    CConfig *p_config = CConfig::getInstance();
+    p_config = CConfig::getInstance();
     //CConfig的单例类对象p_config实际上就通过其成员m_ConfigItrmList保存的所有的配置文件条目。
     if( p_config->load("nginx.conf") == false )
     {
@@ -81,25 +82,25 @@ int main(int argc,char* argv[],char* environ[])
 
 
     //5)创建守护进程
-    if( p_config->getIntDefault("Daemon",0) == 1 )
-    {
-        int ret = nginx_daemon();     //父进程返回1，子进程返回0，出错返回-1
-        if( ret == -1 )
-        {
-            printf("main中，创建守护进程失败\n");
-            return -1;
-        }
-        //父进程的分支,直接退出
-        else if( ret == 1 )
-        {
-            return -1;
-        }
-        else if( ret == 0 )
-        {
-            g_daemonized = 1;
-        }
+    // if( p_config->getIntDefault("Daemon",0) == 1 )
+    // {
+    //     int ret = nginx_daemon();     //父进程返回1，子进程返回0，出错返回-1
+    //     if( ret == -1 )
+    //     {
+    //         printf("main中，创建守护进程失败\n");
+    //         return -1;
+    //     }
+    //     //父进程的分支,直接退出
+    //     else if( ret == 1 )
+    //     {
+    //         return -1;
+    //     }
+    //     else if( ret == 0 )
+    //     {
+    //         g_daemonized = 1;
+    //     }
 
-    }
+    // }
 
     //6)正式开始的主工作流程，主流程一致在下边这个函数里循环，暂时不会走下来，资源释放什么的日后再慢慢完善和考虑
     ngx_master_process_cycle(); //不管是父进程还是子进程，正常工作期间都会在这个函数里死循环。

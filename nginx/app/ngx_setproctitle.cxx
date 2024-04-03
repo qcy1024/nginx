@@ -1,6 +1,5 @@
 #include "ngx_global.h"
-#include <string.h>
-#include <stdio.h>
+
 
 //初始化工作，将原本的environ[]的内容搬走到我们自己申请的内存，并令environ[i]指向对应的新的内存(environ数组的内容是不变的)
 void ngx_init_setproctitle(char** environ)

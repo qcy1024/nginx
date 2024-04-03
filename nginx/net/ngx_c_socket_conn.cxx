@@ -1,7 +1,6 @@
 //和 网络 中 连接 有关的函数放在这里
 
 #include "ngx_c_socket.h"
-#include "ngx_global.h"
 #include "ngx_c_conf.h"
 
 

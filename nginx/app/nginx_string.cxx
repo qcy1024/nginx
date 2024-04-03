@@ -27,7 +27,6 @@ void Ltrim(char* s)
     }
     *s = '\0';
 }
-
 void Rtrim(char* s)
 {
     int len = strlen(s);

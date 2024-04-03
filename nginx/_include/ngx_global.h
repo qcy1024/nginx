@@ -10,6 +10,17 @@
 #include <time.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <vector>
+#include <sys/epoll.h>
+#include <sys/ioctl.h>
+#include <netinet/in.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include <sys/stat.h>
+
+
+class CSocket;
+class CConfig;
 
 
 #define NGX_PROCESS_MASTER 0    //master进程
@@ -32,6 +43,8 @@ typedef struct {
 
 /*外部全局量声明*/
 
+extern CConfig *p_config;
+
 //g_os_argv保存命令行参数argv[]
 extern char** g_os_argv;
 //新的保存environ[]的内存位置
@@ -51,6 +64,8 @@ extern int g_daemonized;   //标志进程是否启用了守护进程模式
 extern int ngx_process;        //进程类型，比如worker进程，master进程等。
 
 extern sig_atomic_t ngx_reap;  //sig_atomic_t是系统定义的一种原子类型。
+
+extern CSocket g_socket;       //socket全局对象
 
 
 /*函数声明*/
@@ -75,4 +90,7 @@ void ngx_master_process_cycle();
 
 int nginx_daemon();
 
+
 #endif
+
+
