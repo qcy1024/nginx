@@ -1,13 +1,30 @@
 #include "ngx_c_socket.h"
 #include "ngx_c_conf.h"
-
+#include "ngx_c_memory.h"
 
 
 #define EINTR 4
 
 CSocket::CSocket()
 {
+    //配置相关
+    m_worker_connections = 1;
     m_ListenPortCount = 1;
+
+    //epoll相关
+    m_epollhandle = -1;
+    m_pconnections = NULL;
+    m_pfree_connections = NULL;
+
+    //一些和网络通讯有关的常用变量值，供后续频繁使用时提高效率
+    m_iLenPkgHeader = sizeof(COMM_PKG_HEADER);      //包头占用的字节数
+    m_iLenMsgHeader = sizeof(STRUC_MSG_HEADER);     //消息头占用的字节数
+
+    m_iRecvMsgQueueCount = 0;                       //收消息队列
+    
+    //多线程相关
+    pthread_mutex_init(&m_recvMessageQueueMutex,NULL);  //互斥量初始化
+    
     return ;
 }
 
@@ -20,6 +37,34 @@ CSocket::~CSocket()
         delete (*pos);
     }
     m_ListenSocketList.clear();
+
+    //释放连接池
+    if( m_pconnections != NULL )
+    {
+        delete [] m_pconnections;
+    }
+
+    //释放接收消息队列的内容
+    clearMsgRecvQueue();
+
+    //多线程相关
+    pthread_mutex_destroy(&m_recvMessageQueueMutex);        //互斥量释放
+
+    return ;
+}
+
+void CSocket::clearMsgRecvQueue()
+{
+    char* sTmpMempoint;
+    CMemory *p_memory = CMemory::getInstance();
+
+    while( !m_MsgRecvQueue.empty() )
+    {
+        sTmpMempoint = m_MsgRecvQueue.front();
+        m_MsgRecvQueue.pop_front();
+        p_memory->FreeMemory(sTmpMempoint);
+    }
+    return ;
 }
 
 void CSocket::ReadConf()
@@ -46,9 +91,9 @@ bool CSocket::ngx_open_listening_sockets()
 {
     //printf("m_ListenPortCount是：%d\n",m_ListenPortCount);
 
-    int isock;                          //socket
+    int isock;                          //用于保存服务器端调用socket()返回的套接字描述符
     struct sockaddr_in serv_addr;       
-    int iport;                          //端口
+    int iport;                          //用于保存配置文件中指定的要监听的端口号
     char strinfo[100];                  //临时字符串
     
     memset(&serv_addr,0,sizeof(serv_addr));
@@ -109,7 +154,6 @@ bool CSocket::ngx_open_listening_sockets()
             return false;
         }
 
-        //ngx_listening_t是监听类型，包含成员fd:套接字描述符，以及port:监听的端口号。
         lpngx_listening_t p_listensocketitem = new ngx_listening_t;
         memset(p_listensocketitem,0,sizeof(ngx_listening_t));
         p_listensocketitem->fd = isock;
@@ -143,11 +187,12 @@ void CSocket::ngx_close_listening_sockets()
     return ;
 }
 
+//ngx_epoll_init()在worker进程的初始化函数中被调用。
 //这个函数创建epoll、创建连接池，遍历每一个正在监听的端口，将相应的套接字描述符加入到epoll对象中去，并添加读事件为关注事件
 int CSocket::ngx_epoll_init()
 {
-    //（1）调用epoll_create()
-    m_epollhandle = epoll_create(m_worker_connections);
+    //（1）调用epoll_create(),创建epoll对象，将epoll对象的文件描述符赋给成员变量m_epollhandle
+    m_epollhandle = epoll_create(m_worker_connections);     //m_worker_connections表示epoll连接的最大数量
 
     if( m_epollhandle == -1 )
     {
@@ -156,10 +201,12 @@ int CSocket::ngx_epoll_init()
     }
 
     //（2）创建连接池
-    m_connection_n = m_worker_connections;                  //连接池大小
+    //m_connection_n表示当前进程可以连接的总数【连接池总大小】
+    m_connection_n = m_worker_connections;                  //当前进程可以的连接置为epoll连接的最大数量，即连接池的大小。
     m_pconnections = new ngx_connection_t[m_connection_n];  //把连接池new出来，连接池数组中每一个元素是一个连接
 
-    int i = m_connection_n;                       //连接池中连接数
+    //对连接池进行初始化工作
+    int i = m_connection_n;                       
     lpngx_connection_t next = NULL;
     lpngx_connection_t c = m_pconnections;      //连接池数组首地址
 
@@ -169,11 +216,13 @@ int CSocket::ngx_epoll_init()
         i--;
         c[i].data = next;
         c[i].fd = -1;
-        c[i].instance = 1;
+        c[i].instance = 1;                      //连接池中每一个连接的instance初始化为1
         c[i].iCurrsequence = 0;
 
         next = &c[i];
     } while(i);
+
+    //初始化空闲链
     m_pfree_connections = next;                 //设置空闲连接链表头指针为m_pfree_connections
     m_free_connection_n = m_connection_n;       //空闲连接链表长度，刚刚初始化时没有连接，全是空闲的。
 
@@ -190,6 +239,8 @@ int CSocket::ngx_epoll_init()
             printf("CSocket::ngx_close_listening_sockets()中ngx_get_connection失败!\n");
             exit(2);
         }
+
+        //将监听对象和连接对象绑定
         c->listening = *pos;                //连接类型中的监听类型对象为该监听对象，即连接对象 和 监听对象 关联，方便通过连接对象找到监听对象
         (*pos)->connection = c;             //监听对象 和 连接对象 关联，方便通过监听对象找到连接对象
 
@@ -199,7 +250,7 @@ int CSocket::ngx_epoll_init()
         c->rhandler = &CSocket::ngx_event_accept;
         
         //ngx_epoll_add_event往socket上增加监听事件。
-        //这就是把每一个监听端口的套接字描述符及其关注的事件增加到epoll对象上
+        //把每一个监听端口的套接字描述符及其关注的事件增加到epoll对象上
         if( ngx_epoll_add_event((*pos)->fd,             //套接字描述符
                                 1,0,                    //读，写（只关心读事件，所以读，写分别为1，0）
                                 0,                      //其他补充标记
@@ -216,7 +267,7 @@ int CSocket::ngx_epoll_init()
 
 }
 
-
+//传入文件描述符以及一些信息
 int CSocket::ngx_epoll_add_event(int fd,
                                 int readevent, int writeevent,
                                 uint32_t otherflag,
@@ -224,11 +275,16 @@ int CSocket::ngx_epoll_add_event(int fd,
                                 lpngx_connection_t c
                                 )
 {
+//     struct epoll_event {
+//     uint32_t events; // 表示感兴趣的事件类型，可以是 EPOLLIN、EPOLLOUT、EPOLLERR、EPOLLHUP 等的按位或
+//     epoll_data_t data; // 用户数据，可以是文件描述符、指针等
+//     };
     struct epoll_event ev;      //epoll_event是系统定义的类型
     memset(&ev,0,sizeof(ev));
 
     if( readevent == 1 )
     {
+        //events字段是struct epoll_event中的一个成员，它是一个位掩码，可以用EPOLLIN,EPOLLOUT等宏来设置。
         //EPOLLIN是读事件，也即是ready read；EPOLLRDHUP是客户端的关闭连接事件
         ev.events = EPOLLIN|EPOLLRDHUP;     
 
@@ -247,6 +303,7 @@ int CSocket::ngx_epoll_add_event(int fd,
     //c->instance是那个位域。因为任何指针变量的最后一位一定是0，这个按位或运算就使得ptr保存了指针地址以及这个位域是1还是0的信息。
     ev.data.ptr = (void*)( (uintptr_t)c | c->instance );        
 
+    //epoll_event对象ev的data字段附带了一个函数指针，目的是指明相应事件发生时的处理函数
     if( epoll_ctl(m_epollhandle,eventtype,fd,&ev) == -1 )
     {
         printf("CSocket::ngx_epoll_add_event()中，epoll_ctl()失败！\n");
@@ -255,12 +312,21 @@ int CSocket::ngx_epoll_add_event(int fd,
     return 1;
 }
 
+//将套接字描述符加入epoll对象(红黑树)时，(注意：这棵红黑树中的每一个节点包含文件描述符fd及事件event的信息。)
+//同时传入了一个ngx_connection_t*类型的指针，指向连接池中的一项,这个指针用event.data.ptr保存。到时候调用
+//epoll_wait()从红黑树中取事件的时候，就可以通过这个事件中的event.data.ptr指针，取出对应的连接池中的那一项。
+//这一项就包含了很多信息。如：事件对应的文件描述符、读写事件处理函数等。于是，便可以知道事件用什么函数处理。
+
+//这个函数在worker进程干活的死循环for()中被调用。
 int CSocket::ngx_epoll_process_events(int timer)
 {
 
     //在m_epollhandle这个epoll对象上，最多接收NGX_MAX_EVENTS个事件，这些事件放在m_events为起始地址的内存中。
     //epoll_wait() 函数返回已经就绪的事件数，如果出现错误或超时，则返回 -1，并设置 errno 以指示错误类型
+    //在服务器的监听套接字描述符上，“有连接已完成”是一个就绪事件。
     int events = epoll_wait(m_epollhandle,m_events,NGX_MAX_EVENTS,timer);
+
+    printf("在ngx_epoll_process_events中，pid=%d,此时就绪的事件数量为：events = %d\n",getpid(),events);
 
     if( events == -1 )
     {
@@ -293,25 +359,32 @@ int CSocket::ngx_epoll_process_events(int timer)
         }
     }
 
-    //event>0,表示有已就绪的事件
+    //events>0,表示有已就绪的事件
     else 
     {
         lpngx_connection_t c;
         uintptr_t instance;         //uintptr_t类型是一个无符号整数类型，可以在整数和指针类型之间相互转换。
         uint32_t revents;
 
+        //用一个for循环处理所有就绪事件
         for( int i=0; i<events; ++i )
         {
             c = (lpngx_connection_t)(m_events[i].data.ptr);
             instance = (uintptr_t)c & 1;    //得到instance是0还是1
             c = (lpngx_connection_t)( (uintptr_t)c & (uintptr_t) ~ 1 );     //得到c真正的地址(末位为0)
             
-            //以下两个if处理过期事件
+            //以下两个if处理过期事件，
             if( c->fd == -1 )
             {
+                //c->fd什么情况会为-1?  假如我们用epoll_wait()取得三个事件，第一个事件和第三个事件对应的是同一个连接，
+                //处理第一个事件时，因为业务需要，将连接关闭了，此时就会调用ngx_close_connected_connedtion()函数，将
+                //该连接中的fd置为-1。那么，在处理第三个事件时，c->fd就会为-1.
                 printf("CSocket::ngx_epoll_process_events()中遇到了fd为-1的过期事件\n");
                 continue;       //这种事件不处理即可
             }
+
+            //instance是当时ngx_epoll_add_event()时加进去的instance的值，而c->instance是此时此刻收到事件的时候，instance的值
+            //这两个值是有可能会不一样的。
             if( c->instance != instance )
             {
                 printf("CSocket::ngx_epoll_process_events()中遇到了instance值改变的过期事件\n");
@@ -326,24 +399,26 @@ int CSocket::ngx_epoll_process_events(int timer)
                                                 //EPOLLOUT:表示对应的连接上可以写入数据发送
             }
             
+            //个人思考：这里的过期判断存在漏洞。在ngx_connection_t中引入了一个iCurrsequence，试图解决这个问题。
+
             //如果这个事件是一个读事件
             if( revents & EPOLLIN )
             {
-                printf("数据来了来了来了~~~~~\n");
+                //printf("数据来了~~~~~\n");
                 //执行读事件的处理函数rhandler,在ngx_epoll_init()中将rhandler设置成为了ngx_event_accept
-                //(this->* (c->rhandler) ) (c) ;
+                (this->* (c->rhandler) ) (c) ;
 
             }
 
             //如果这个事件是一个写事件
             if( revents & EPOLLOUT )
             {
-                //....待完成
+                //printf("这是一个写事件\n");
                 
             }
 
         }//end of for( int i=0; i<events; ++i )
-    }
+    }//end of else [events>0]
 
     return 1;
 }

@@ -36,14 +36,14 @@ int main(int argc,char* argv[],char* environ[])
     //初始化设置标题要做的事（把environ[]搬走）
     ngx_init_setproctitle(environ);
     //将进程的标题设置为mynginx!!!
-    ngx_setproctitle("mynginx!!!");
+    //ngx_setproctitle("mynginx!!!");
 
     ngx_process = NGX_PROCESS_MASTER;
 
     //2）初始化失败就要直接退出的
     //获取一个单例类对象指针，用于读取并解析配置文件
     p_config = CConfig::getInstance();
-    //CConfig的单例类对象p_config实际上就通过其成员m_ConfigItrmList保存的所有的配置文件条目。
+    //CConfig的单例类对象p_config通过其成员m_ConfigItemList保存的所有的配置文件条目。
     if( p_config->load("nginx.conf") == false )
     {
         ngx_log_stderr(0,"配置文件%s载入失败，退出！\n","nginx.conf");
@@ -102,14 +102,14 @@ int main(int argc,char* argv[],char* environ[])
 
     // }
 
-    //6)正式开始的主工作流程，主流程一致在下边这个函数里循环，暂时不会走下来，资源释放什么的日后再慢慢完善和考虑
-    ngx_master_process_cycle(); //不管是父进程还是子进程，正常工作期间都会在这个函数里死循环。
+    //6)正式开始的主工作流程
+    ngx_master_process_cycle(); 
 
-    for(;;)
-    {
-        printf("程序正在运行\n");
-        sleep(1);
-    }
+    // for(;;)
+    // {
+    //     printf("程序正在运行\n");
+    //     sleep(1);
+    // }
 
 
     return 0;

@@ -6,18 +6,20 @@ void CSocket::ngx_process_events_and_timers()
 {
     ngx_epoll_process_events(-1);
 }
-
+ 
 
 //建立新连接专用函数，当新连接进入时，本函数会被ngx_epoll_process_events()所调用
+//在ngx_epoll_init()中，所有监听套接字的读事件处理函数被设置成了该函数。
 void CSocket::ngx_event_accept(lpngx_connection_t oldc)
 {
-    struct sockaddr         mysockaddr;
+    struct sockaddr         mysockaddr;             //用于存储客户端地址信息
     socklen_t               socklen;
-    int                     err;
-    int                     level;
     int                     s;                      //用于保存客户端套接字描述符，后面用accept4的返回值为其赋值
     static int              use_accept4 = 1;        //先认为能够使用accept4()函数
     lpngx_connection_t      newc;
+
+    int                     err;
+    int                     level;
 
     socklen = sizeof(mysockaddr);
 
@@ -50,7 +52,6 @@ void CSocket::ngx_event_accept(lpngx_connection_t oldc)
                 level = NGX_LOG_ERR;
             }
             //EMFILE：进程的fd已用尽【已达到系统所允许单一进程所能打开的最大文件数】
-            
             else if( err == EMFILE || err == ENFILE )   
             {
                 level = NGX_LOG_CRIT;
@@ -73,6 +74,8 @@ void CSocket::ngx_event_accept(lpngx_connection_t oldc)
         }//end of if( s == -1 )
 
         //走到这里，就表示accept4()/accept()成功了，即取到了一个已完成的连接
+
+        //从空闲连接池取出一个空闲连接，将该连接的fd字段置为s(客户端的套接字描述符)
         newc = ngx_get_connection(s);
         if( newc == NULL )
         {
@@ -92,7 +95,7 @@ void CSocket::ngx_event_accept(lpngx_connection_t oldc)
         {
             if( setnonblocking(s) == false )
             {
-                ngx_close_accepted_connection(newc);
+                ngx_close_connection(newc);
                 return ;
             }
         }
@@ -103,30 +106,23 @@ void CSocket::ngx_event_accept(lpngx_connection_t oldc)
         //设置来数据时的处理函数
         newc->rhandler = &CSocket::ngx_wait_request_handler;
 
+        //把客户端的套接字描述符加到epoll对象上来
+        //在ngx_epoll_add_event()函数中需要把指针newc传进去的原因是，要在epoll事件中记录相应的事件处理函数(epoll的事件类型events就保存了
+        //该事件的处理函数)。
         if( ngx_epoll_add_event(s,
                                 1,0,
-                                EPOLLET,        //这个标记将epoll设置为边缘触发
+                                //EPOLLET,        //这个标记将epoll设置为边缘触发
+                                0,
                                 EPOLL_CTL_ADD,
                                 newc ) == -1 )
         {
-            ngx_close_accepted_connection(newc);
+            ngx_close_connection(newc);
             return ;
         }
         break;
     } while (1);
-    
 
 }
 
-void CSocket::ngx_close_accepted_connection(lpngx_connection_t c)
-{
-    int fd = c->fd;
-    ngx_free_connection(c);
-    c->fd = -1;
-    if( close(fd) == -1 )
-    {
-        printf("CSocket::ngx_close_accepted_connection()中close(%d)失败！\n",fd);
-    }
-    return ;
-}
+
 

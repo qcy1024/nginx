@@ -135,6 +135,7 @@ static void ngx_process_get_status(void)
     int one = 0;   
     for(;;)
     {
+        //参数-1表示等待所有子进程
         pid = waitpid(-1,&status,WNOHANG);
         if( pid == 0 )
         {
@@ -163,6 +164,7 @@ static void ngx_process_get_status(void)
         }
         //走到这里，表示waitpid()成功
         one = 1;
+        //只有在WIFSIGNALED()返回为真时，才定义这个状态。WIFSIGNALED():如果子进程是因为一个未被捕获的信号终止的，那么就返回真。
         if( WTERMSIG(status) )
         {
             printf("pid = %d exited on signal %d!\n",pid,WTERMSIG(status));

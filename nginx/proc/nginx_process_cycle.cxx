@@ -59,7 +59,7 @@ void ngx_master_process_cycle()
     }
 }
 
-//根据给定的参数创建指定数量的子进程，因为以后可能要扩展功能，增加参数，所以单独写成一个函数
+//根据给定的参数创建指定数量的子进程
 //threadnums:要创建的子进程数量。 
 static void ngx_start_worker_processes(int threadnums)
 {
@@ -97,9 +97,9 @@ static int ngx_spawn_process(int inum,const char* pprocname)
 }
 
 
+//做一些创建子进程的初始化工作
 static void ngx_worker_process_cycle(int inum,const char* pprocname)
 {
-    //做一些创建子进程的初始化工作，将来可能再新加一些内容，所以将初始化工作写成一个函数
     ngx_worker_process_init(inum);
     ngx_setproctitle(pprocname);
     ngx_process = NGX_PROCESS_WORKER;
@@ -113,6 +113,7 @@ static void ngx_worker_process_cycle(int inum,const char* pprocname)
     }
 }
 
+//worker进程的初始化函数
 static void ngx_worker_process_init(int inum)
 {
     sigset_t set;
