@@ -1,9 +1,9 @@
 
 ifeq ($(DEBUG),true)
-CC = g++ -g
+CC = g++ -std=c++11 -g
 VERSION = debug
 else 
-CC = g++
+CC = g++ -std=c++11
 VERSION = release
 endif
 
@@ -37,7 +37,7 @@ $(BIN):$(LINK_OBJ)
 	@echo "----------------build $(VERSION) mode---------------"
 
 # $@：目标     $^：所有目标依赖
-	$(CC) -o $@ $^
+	$(CC) -o $@ $^ -lpthread
 
 
 $(LINK_OBJ_DIR)/%.o:%.cxx 
@@ -45,7 +45,7 @@ $(LINK_OBJ_DIR)/%.o:%.cxx
 
 $(DEP_DIR)/%.d:%.cxx 
 	echo -n $(LINK_OBJ_DIR)/ > $@
-	gcc -I$(INCLUDE_PATH) -MM $^ >> $@
+	$(CC) -I$(INCLUDE_PATH) -MM $^ >> $@
 
 
 

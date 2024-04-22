@@ -2,7 +2,6 @@
 #include "ngx_c_conf.h"
 #include "ngx_c_memory.h"
 
-
 #define EINTR 4
 
 CSocket::CSocket()
@@ -23,6 +22,7 @@ CSocket::CSocket()
     m_iRecvMsgQueueCount = 0;                       //收消息队列
     
     //多线程相关
+    //pthread_mutex_init()是POSIX线程库提供的函数。
     pthread_mutex_init(&m_recvMessageQueueMutex,NULL);  //互斥量初始化
     
     return ;

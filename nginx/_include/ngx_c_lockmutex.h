@@ -9,9 +9,10 @@ public:
     CLock(pthread_mutex_t* pMutex)
     {
         m_pMutex = pMutex;
+        //pthread_mutex_lock()是POSIX标准提供的函数，用于获取一个互斥(对互斥加锁)。
         pthread_mutex_lock(m_pMutex);
-    }
-    ~Clock()
+    };
+    ~CLock()
     {
         pthread_mutex_unlock(m_pMutex);
     }
@@ -19,5 +20,7 @@ public:
 
 private:
     pthread_mutex_t* m_pMutex;
-}
+};
+
+#endif
 

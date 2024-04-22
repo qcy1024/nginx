@@ -87,9 +87,10 @@ public:
     void ngx_wait_request_handler(lpngx_connection_t c);
     void ngx_wait_request_handler_proc_p1(lpngx_connection_t c);
     void ngx_wait_request_handler_proc_plast(lpngx_connection_t c);
-    void inMsgRecvQueue(char* buf);
-    void clearMsgRecvQueue();
-    ssize_t recvproc(lpngx_connection_t c,char* buff,ssize_t buflen);
+    void inMsgRecvQueue(char* buf,int& rmqc);
+    void clearMsgRecvQueue();       //清空消息队列中的所有项
+    ssize_t recvproc(lpngx_connection_t c,char* buff,ssize_t buflen);   //recv()的封装
+    char* outMsgRecvQueue();            //从消息队列中取出一条消息
 
 private:
     bool ngx_open_listening_sockets();      //监听必须的端口【支持多个端口】
@@ -125,7 +126,9 @@ private:
     int                              m_iRecvMsgQueueCount;  //收消息队列大小
     
     //多线程相关
+    //pthread_mutex_t是POSIX线程库中定义的互斥锁类型
     pthread_mutex_t                  m_recvMessageQueueMutex;   //收消息队列互斥量
+    
 };
 
 

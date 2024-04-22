@@ -1,6 +1,7 @@
 #include "ngx_global.h"
 #include "ngx_c_conf.h"
 #include "ngx_c_socket.h"
+#include "ngx_c_threadpool.h"
 
 CConfig *p_config;
 
@@ -11,8 +12,9 @@ char* gp_envmem = NULL;
 //g_environlen保存environ[]的大小
 int g_environlen = 0;
 
-//socket相关
-CSocket g_socket;       //socket全局对象
+//socket/线程池相关
+CSocket g_socket;           //socket全局对象
+CThreadPool g_threadpool;   //线程池全局对象
 
 //和进程本身有关的全局量
 pid_t ngx_pid;          //当前进程的pid

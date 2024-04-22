@@ -1,27 +1,31 @@
 #ifndef __NGX_GLOBAL_H__ 
 #define __NGX_GLOBAL_H__ 
+#include <atomic>
+#include <arpa/inet.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <list>
+#include <netinet/in.h>
+#include <pthread.h>
 #include <stdarg.h>
-#include <unistd.h>
 #include <signal.h>
 #include <sys/wait.h>
-#include <errno.h>
 #include <stdio.h>
 #include <string.h>
-#include <time.h>
-#include <arpa/inet.h>
-#include <fcntl.h>
-#include <vector>
 #include <sys/epoll.h>
 #include <sys/ioctl.h>
-#include <netinet/in.h>
 #include <stdlib.h>
 #include <stdarg.h>
 #include <sys/stat.h>
-#include <list>
+#include <time.h>
+#include <unistd.h>
+#include <vector>
+
 
 
 class CSocket;
 class CConfig;
+class CThreadPool;
 
 
 #define NGX_PROCESS_MASTER 0    //master进程
@@ -53,7 +57,6 @@ extern char* gp_envmem;
 //g_environlen保存environ[]的大小
 extern int g_environlen;
 
-class CConfig;
 
 extern ngx_log_t ngx_log;
 
@@ -66,8 +69,9 @@ extern int ngx_process;        //进程类型，比如worker进程，master进�
 
 extern sig_atomic_t ngx_reap;  //sig_atomic_t是系统定义的一种原子类型。
 
-extern CSocket g_socket;       //socket全局对象
+// extern CSocket g_socket;       //socket全局对象
 
+// extern CThreadPool g_threadpool;   //线程池全局对象
 
 /*函数声明*/
 

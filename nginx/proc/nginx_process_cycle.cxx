@@ -2,7 +2,11 @@
 #include "ngx_c_conf.h"
 #include "ngx_global.h"
 #include "ngx_c_socket.h"
+#include "ngx_c_threadpool.h"
 
+extern CSocket g_socket;       //socket全局对象
+
+extern CThreadPool g_threadpool;   //线程池全局对象
 static void ngx_start_worker_processes(int threadnums);
 static int ngx_spawn_process(int inum,const char* pprocname);
 static void ngx_worker_process_cycle(int inum,const char* pprocname);
@@ -96,21 +100,21 @@ static int ngx_spawn_process(int inum,const char* pprocname)
     return pid;
 }
 
-
-//做一些创建子进程的初始化工作
+//子进程的工作循环函数
 static void ngx_worker_process_cycle(int inum,const char* pprocname)
 {
     ngx_worker_process_init(inum);
     ngx_setproctitle(pprocname);
     ngx_process = NGX_PROCESS_WORKER;
 
-    //子进程会一直在这个for里面死循环干活。
     for(;;)
     {
         // printf("这里是子进程%d\n",inum);
         // sleep(1);
         g_socket.ngx_process_events_and_timers();            //处理网络事件和定时器事件
     }
+
+    g_threadpool.StopAll();
 }
 
 //worker进程的初始化函数
@@ -124,6 +128,14 @@ static void ngx_worker_process_init(int inum)
     if( sigprocmask(SIG_SETMASK,&set,NULL) == -1 )
     {
         printf("ngx_worker_process_init()中sigprocmask()失败!\n");
+    }
+
+    //要在epoll初始化之前就把线程池创建好，epoll一初始化可能就来事件了。
+    CConfig* p_config = CConfig::getInstance();
+    int tmpthreadnums = p_config->getIntDefault("ProcMsgRecvWorkThreadCount",5);
+    if( g_threadpool.Create(tmpthreadnums) == false )
+    {
+        exit(2);
     }
 
     //初始化epoll相关内容，同时往监听socket上添加监听事件
