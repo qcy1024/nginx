@@ -65,7 +65,8 @@ void CSocket::ngx_free_connection(lpngx_connection_t c)
 }
 
 //ngx_close_connection()给定一个连接的指针作为参数，收回这个连接，并关闭这个连接对应的套接字。
-//用户连入，我们accept4()时，得到的socket在处理中产生失败，则资源用这个函数释放。
+//1.用户连入，我们accept4()时，得到的socket在处理中产生失败，则资源用这个函数释放。
+//2.recv()接收到的字节数为0时，认为客户端正常关闭了连接。
 void CSocket::ngx_close_connection(lpngx_connection_t c)
 {
     if( close(c->fd) == -1 )

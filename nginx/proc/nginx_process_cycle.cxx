@@ -103,8 +103,9 @@ static int ngx_spawn_process(int inum,const char* pprocname)
 //子进程的工作循环函数
 static void ngx_worker_process_cycle(int inum,const char* pprocname)
 {
-    ngx_worker_process_init(inum);
     ngx_setproctitle(pprocname);
+    ngx_worker_process_init(inum);
+    
     ngx_process = NGX_PROCESS_WORKER;
 
     for(;;)
@@ -133,6 +134,7 @@ static void ngx_worker_process_init(int inum)
     //要在epoll初始化之前就把线程池创建好，epoll一初始化可能就来事件了。
     CConfig* p_config = CConfig::getInstance();
     int tmpthreadnums = p_config->getIntDefault("ProcMsgRecvWorkThreadCount",5);
+    //Create()保证所有创建出的线程都阻塞在pthread_cond_wait()处后才会返回。
     if( g_threadpool.Create(tmpthreadnums) == false )
     {
         exit(2);

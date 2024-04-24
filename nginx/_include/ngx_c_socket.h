@@ -44,7 +44,7 @@ typedef struct ngx_connection_s
     char*                       precvbuf;                        //接收数据的缓冲区的头指针，这个指针始终指向当前要接收数据的要存放的内存位置。对收到不全的包非常有用
     unsigned int                irecvlen;                        //(还)要接收多少数据，由这个变量指定，和precvbuf配套使用
 
-    bool                        ifnewrecvMem;                    //如果我们成功收到了包头，那么我们就要分配内存开始保存消息头+包头+包体内容
+    bool                        ifnewrecvMem;                    //如果我们成功收到了包头，那么就分配内存开始保存消息头+包头+包体内容
                                                                  //这个标记用来标记是否new过内存，可以应对恶意包的内存释放问题。
     char*                       pnewMemPointer;                  //new出来的用于收包的内存首地址，和ifnewrecvMem配套使用
 
@@ -55,21 +55,29 @@ typedef struct ngx_connection_s
 
 }ngx_connection_t,*lpngx_connection_t;
 
+
 //消息头，引入的目的是当收到数据包时，额外记录一些内容以备将来使用。
 typedef struct _STRUC_MSG_HEADER
 {
     ngx_connection_s* pConn;                    //记录对应的连接
     uint64_t          iCurrsequence;            //收到数据包时记录对应连接的序号，将来用于比较是否连接已经作废
-    //......待拓展
+    
 }STRUC_MSG_HEADER,*LPSTRUC_MSG_HEADER;
+
 
 class CSocket
 {
 public:
     CSocket();
     virtual ~CSocket();
-public:
     virtual bool Initialize();      //初始化函数
+
+public:
+    //void inMsgRecvQueue(char* buf,int& rmqc);
+    //char* outMsgRecvQueue();            //从消息队列中取出一条消息
+    virtual void threadRecvProcFunc(char* pMsgBuf);
+
+public:
     void ReadConf();       //读配置文件中与网络、epoll有关的配置项
     int ngx_epoll_init();  //初始化epoll，在ngx_worker_process_init()中被调用。
     int ngx_epoll_process_events(int timer);
@@ -87,17 +95,20 @@ public:
     void ngx_wait_request_handler(lpngx_connection_t c);
     void ngx_wait_request_handler_proc_p1(lpngx_connection_t c);
     void ngx_wait_request_handler_proc_plast(lpngx_connection_t c);
-    void inMsgRecvQueue(char* buf,int& rmqc);
-    void clearMsgRecvQueue();       //清空消息队列中的所有项
+    
+    //void clearMsgRecvQueue();       //清空消息队列中的所有项
     ssize_t recvproc(lpngx_connection_t c,char* buff,ssize_t buflen);   //recv()的封装
-    char* outMsgRecvQueue();            //从消息队列中取出一条消息
+    
+
+public:
+    //std::list<char*> getMsgRecvQueue(){ return m_MsgRecvQueue; };
 
 private:
     bool ngx_open_listening_sockets();      //监听必须的端口【支持多个端口】
     void ngx_close_listening_sockets();     //关闭监听套接字
     bool setnonblocking(int sockfd);        //设置非阻塞套接字
 
-private:
+protected:
     int                              m_worker_connections;   //epoll连接的最大数量
     int                              m_ListenPortCount;      //所监听的端口数量
     int                              m_epollhandle;          //epoll_create返回的句柄
@@ -122,8 +133,8 @@ private:
     size_t                           m_iLenMsgHeader;       //sizeof(STRUC_MSG_HEADER);消息头的大小
 
     //消息队列
-    std::list<char*>                 m_MsgRecvQueue;        //接收数据消息队列
-    int                              m_iRecvMsgQueueCount;  //收消息队列大小
+    // std::list<char*>                 m_MsgRecvQueue;        //接收数据消息队列
+    // int                              m_iRecvMsgQueueCount;  //收消息队列大小
     
     //多线程相关
     //pthread_mutex_t是POSIX线程库中定义的互斥锁类型

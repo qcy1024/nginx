@@ -2,6 +2,9 @@
 #include "ngx_c_conf.h"
 #include "ngx_c_socket.h"
 #include "ngx_c_threadpool.h"
+#include "ngx_c_memory.h"
+#include "ngx_c_crc32.h"
+#include "ngx_c_slogic.h"
 
 CConfig *p_config;
 
@@ -13,7 +16,8 @@ char* gp_envmem = NULL;
 int g_environlen = 0;
 
 //socket/线程池相关
-CSocket g_socket;           //socket全局对象
+//CSocket g_socket;           //socket全局对象
+CLogicSocket g_socket;        //socket全局对象
 CThreadPool g_threadpool;   //线程池全局对象
 
 //和进程本身有关的全局量
@@ -51,7 +55,9 @@ int main(int argc,char* argv[],char* environ[])
         ngx_log_stderr(0,"配置文件%s载入失败，退出！\n","nginx.conf");
         return -1;
     }
-    
+
+    // CMemory::getInstance();
+    // CCRC32::getInstance();
 
     /*读配置文件的测试*/
     // int i = 0;

@@ -19,7 +19,7 @@ CSocket::CSocket()
     m_iLenPkgHeader = sizeof(COMM_PKG_HEADER);      //包头占用的字节数
     m_iLenMsgHeader = sizeof(STRUC_MSG_HEADER);     //消息头占用的字节数
 
-    m_iRecvMsgQueueCount = 0;                       //收消息队列
+    //m_iRecvMsgQueueCount = 0;                       //收消息队列
     
     //多线程相关
     //pthread_mutex_init()是POSIX线程库提供的函数。
@@ -45,7 +45,7 @@ CSocket::~CSocket()
     }
 
     //释放接收消息队列的内容
-    clearMsgRecvQueue();
+    //clearMsgRecvQueue();
 
     //多线程相关
     pthread_mutex_destroy(&m_recvMessageQueueMutex);        //互斥量释放
@@ -53,19 +53,19 @@ CSocket::~CSocket()
     return ;
 }
 
-void CSocket::clearMsgRecvQueue()
-{
-    char* sTmpMempoint;
-    CMemory *p_memory = CMemory::getInstance();
+// void CSocket::clearMsgRecvQueue()
+// {
+//     char* sTmpMempoint;
+//     CMemory *p_memory = CMemory::getInstance();
 
-    while( !m_MsgRecvQueue.empty() )
-    {
-        sTmpMempoint = m_MsgRecvQueue.front();
-        m_MsgRecvQueue.pop_front();
-        p_memory->FreeMemory(sTmpMempoint);
-    }
-    return ;
-}
+//     while( !m_MsgRecvQueue.empty() )
+//     {
+//         sTmpMempoint = m_MsgRecvQueue.front();
+//         m_MsgRecvQueue.pop_front();
+//         p_memory->FreeMemory(sTmpMempoint);
+//     }
+//     return ;
+// }
 
 void CSocket::ReadConf()
 {

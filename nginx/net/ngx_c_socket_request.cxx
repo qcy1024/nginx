@@ -4,8 +4,9 @@
 #include "ngx_c_memory.h"
 #include "ngx_c_lockmutex.h"
 #include "ngx_c_threadpool.h"
-extern CSocket g_socket;       //socket全局对象
+#include "ngx_c_slogic.h"
 
+extern CLogicSocket g_socket;       //socket全局对象
 extern CThreadPool g_threadpool;   //线程池全局对象
 
 //来数据时候的处理，当连接上有数据来的时候，本函数会被ngx_epoll_process_events()所调用，
@@ -145,6 +146,8 @@ void CSocket::ngx_wait_request_handler_proc_p1(lpngx_connection_t c)
     LPCOMM_PKG_HEADER pPkgHeader;
     pPkgHeader = (LPCOMM_PKG_HEADER)c->dataHeadInfo;        //dataHeadInfo保存每个连接的包头数据
 
+    //printf("收到的包的报文总长度为:%d,消息类型为%d\n",pPkgHeader->pkgLen,pPkgHeader->msgCode);
+
     //变量e_pkgLen保存整个数据包的大小，从接收到的包头中的pkgLen字段获得
     unsigned short e_pkgLen;
     e_pkgLen = ntohs(pPkgHeader->pkgLen);       //整个包的大小这个值，网络序和本机序有可能不一样，这里将网络序转成本机序
@@ -172,8 +175,8 @@ void CSocket::ngx_wait_request_handler_proc_p1(lpngx_connection_t c)
         c->ifnewrecvMem = true;
         c->pnewMemPointer = pTmpBuffer;
 
-        //填写消息头内容
         LPSTRUC_MSG_HEADER ptmpMsgHeader = (LPSTRUC_MSG_HEADER)pTmpBuffer;
+        //填写消息头内容
         //消息头中记录连接的指针
         ptmpMsgHeader->pConn = c;
         ptmpMsgHeader->iCurrsequence = c->iCurrsequence;
@@ -196,17 +199,18 @@ void CSocket::ngx_wait_request_handler_proc_p1(lpngx_connection_t c)
     return ;
 }
 
+//一个包收完整后的触发函数
 void CSocket::ngx_wait_request_handler_proc_plast(lpngx_connection_t c)
 {
-    //把这段内存放到消息队列中来
-    int irmqc = 0;      //消息队列当前信息数量
+    // //把这段内存放到消息队列中来
+    // int irmqc = 0;      //消息队列当前信息数量
+    // //消息头+包头+包体的内容的内存首地址就存在了c->pnewMemPointer里面。
+    // //主线程一条线程下来把这个消息(收到的完整的包)扔到消息队列中来
+    // inMsgRecvQueue(c->pnewMemPointer,irmqc);
+    // //激发线程池中的某个线程来处理业务逻辑
+    // g_threadpool.Call(irmqc);
 
-    //消息头+包头+包体的内容的内存首地址就存在了c->pnewMemPointer里面。
-    //主线程一条线程下来把这个消息(收到的完整的包)扔到消息队列中来
-    inMsgRecvQueue(c->pnewMemPointer,irmqc);
- 
-    //激发线程池中的某个线程来处理业务逻辑
-    g_threadpool.Call(irmqc);
+    g_threadpool.inMsgRecvQueueAndSignal(c->pnewMemPointer);    //入消息队列并激发一个线程来处理消息
 
     //为收下一个包做准备
     c->ifnewrecvMem = false;            //对于加入到了消息队列中的存放包的数据的内存，就在消息队列中释放了，因此这里ifnewrecvMem置为false
@@ -217,27 +221,34 @@ void CSocket::ngx_wait_request_handler_proc_plast(lpngx_connection_t c)
     return ;
 }
 
-void CSocket::inMsgRecvQueue(char* buf,int& irmqc)
-{
-    //printf("收到了一个完整的数据包！接下来在inMsgRecvQueue()中处理这个包！\n");
-    CLock lock(&m_recvMessageQueueMutex);
-    m_MsgRecvQueue.push_back(buf);
-    ++m_iRecvMsgQueueCount;
-    irmqc = m_iRecvMsgQueueCount;           //消息队列中当前的消息数量赋值给irmqc
+// void CSocket::inMsgRecvQueue(char* buf,int& irmqc)
+// {
+//     //printf("收到了一个完整的数据包！接下来在inMsgRecvQueue()中处理这个包！\n");
+//     CLock lock(&m_recvMessageQueueMutex);
+//     m_MsgRecvQueue.push_back(buf);
+//     ++m_iRecvMsgQueueCount;
+//     irmqc = m_iRecvMsgQueueCount;           //消息队列中当前的消息数量赋值给irmqc
  
+// }
+
+// //从消息队列m_MsgRecvQueue中取出一个消息，返回该消息。
+// char* CSocket::outMsgRecvQueue()
+// {
+//     CLock lock(&m_recvMessageQueueMutex);
+//     if( m_MsgRecvQueue.empty() )
+//     {
+//         return NULL;
+//     }
+//     char* sTmpMsgBuf = m_MsgRecvQueue.front();
+//     m_MsgRecvQueue.pop_front();
+//     --m_iRecvMsgQueueCount;
+//     return sTmpMsgBuf;
+// }
+
+void CSocket::threadRecvProcFunc(char* pMsgBuf)
+{
+    printf("执行了父类的threadRecvProcFunc()\n");
+    return ;
 }
 
-//从消息队列m_MsgRecvQueue中取出一个消息，返回该消息。
-char* CSocket::outMsgRecvQueue()
-{
-    CLock lock(&m_recvMessageQueueMutex);
-    if( m_MsgRecvQueue.empty() )
-    {
-        return NULL;
-    }
-    char* sTmpMsgBuf = m_MsgRecvQueue.front();
-    m_MsgRecvQueue.pop_front();
-    --m_iRecvMsgQueueCount;
-    return sTmpMsgBuf;
-}
 

@@ -51,6 +51,9 @@ void ngx_setproctitle(const char* title)
     g_os_argv[1] = NULL;
     char* ptmp = g_os_argv[0];
     strcpy(ptmp,title);
+
+    //printf("ngx_setproctitle()中，将argv[0]处的内存修改为了%s,标题长度为%lu\n",ptmp,ititlelen);
+    
     ptmp += ititlelen;
 
     size_t cha = esy - ititlelen;
