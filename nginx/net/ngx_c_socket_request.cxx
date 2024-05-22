@@ -9,9 +9,8 @@
 extern CLogicSocket g_socket;       //socket全局对象
 extern CThreadPool g_threadpool;   //线程池全局对象
 
-//来数据时候的处理，当连接上有数据来的时候，本函数会被ngx_epoll_process_events()所调用，
 //该函数是epoll对象上与客户端连接对应的套接字描述符上面的读事件的处理函数。
-void CSocket::ngx_wait_request_handler(lpngx_connection_t c)
+void CSocket::ngx_read_request_handler(lpngx_connection_t c)
 {
     //收包。recvproc()函数在下面定义，调用了系统的recv()函数。注意我们用的第二和第三个参数，我们用的始终是这
     //两个参数，因此必须保证c->precvbuf指向正确的收包位置。
@@ -22,7 +21,6 @@ void CSocket::ngx_wait_request_handler(lpngx_connection_t c)
         return ;
     }
  
-    //程序走到这里，说明成功收到了一些字节。
     if( c->curStat == _PKG_HD_INIT ) //连接建立起来时肯定是这个状态
     {
         //收到的字节数刚好等于包头的长度
@@ -32,15 +30,14 @@ void CSocket::ngx_wait_request_handler(lpngx_connection_t c)
         }
         else 
         {
-            //收到的包头不完整，我们不能预料每个包的长度，也不能预料各种拆包/粘包状况，所以收到不完整包头也是
-            c->curStat = _PKG_HD_RECVING;               //接收包头中，包头不完整，继续接收包头中
-            c->precvbuf = c->precvbuf + reco;           //注意收后续包的内存往后走
-            c->irecvlen = c->irecvlen - reco;           //要收的内容当然要减少，以确保只收到完整的包头先。
+            c->curStat = _PKG_HD_RECVING;              
+            c->precvbuf = c->precvbuf + reco;      
+            c->irecvlen = c->irecvlen - reco;         
         }
     }
     else if( c->curStat == _PKG_HD_RECVING )    //接收包头中。【包头不完整，继续接收中】
     {
-        if( c->irecvlen == reco )   //在_PKG_HD_RECVING状态下，实际收到的字节数和还要求收到的字节数相等了，表示包头收完了
+        if( c->irecvlen == reco )   //包头收完了
         {
             ngx_wait_request_handler_proc_p1(c);
         }
@@ -93,14 +90,18 @@ ssize_t CSocket::recvproc(lpngx_connection_t c,char* buff,ssize_t buflen)
     n = recv(c->fd,buff,buflen,0);
     if( n == 0 )
     {
+        if( close(c->fd) == -1 )
+        {
+            printf("CSocket::recvproc()中close(%d)失败!\n",c->fd);
+        }
+        inRecyConnectQueue(c);  //延迟回收连接池
         //客户端关闭连接才会n==0（应该是正常完成了4次挥手），这边就直接收回连接，关闭socket即可。
         printf("连接被客户端正常关闭!\n");
-        ngx_close_connection(c);
+        //ngx_close_connection(c); 
         return -1;
     }
  
     //客户端没断，走这里
-
     if( n < 0 )     //有错误发生
     {
         //EAGAIN和EWOULDBLOCK(惠普)应该是一样的值，表示没收到数据，一般来说，在ET模式下会出现这个错误。
@@ -128,8 +129,14 @@ ssize_t CSocket::recvproc(lpngx_connection_t c,char* buff,ssize_t buflen)
             printf("CSocket::recvproc中发生了错误！\n");
         }
         
+        if( close(c->fd) == -1 )
+        {
+            printf("CSocket::recvproc()中close_2(%d)失败!\n",c->fd);
+        }
+        inRecyConnectQueue(c);
+        
         printf("连接被客户端 非 正常关闭!\n");
-        ngx_close_connection(c);
+        //ngx_close_connection(c);
         return -1;
         
     }//end of if( n < 0 ) 
@@ -146,11 +153,11 @@ void CSocket::ngx_wait_request_handler_proc_p1(lpngx_connection_t c)
     LPCOMM_PKG_HEADER pPkgHeader;
     pPkgHeader = (LPCOMM_PKG_HEADER)c->dataHeadInfo;        //dataHeadInfo保存每个连接的包头数据
 
-    //printf("收到的包的报文总长度为:%d,消息类型为%d\n",pPkgHeader->pkgLen,pPkgHeader->msgCode);
+    //printf("收到的包的报文总长度为:%d,消息类型为%hu\n",pPkgHeader->pkgLen,pPkgHeader->msgCode);
 
     //变量e_pkgLen保存整个数据包的大小，从接收到的包头中的pkgLen字段获得
     unsigned short e_pkgLen;
-    e_pkgLen = ntohs(pPkgHeader->pkgLen);       //整个包的大小这个值，网络序和本机序有可能不一样，这里将网络序转成本机序
+    e_pkgLen = ntohs(pPkgHeader->pkgLen);
     
     //整个包的长度小于包头的长度，恶意包或错误包
     if( e_pkgLen < m_iLenPkgHeader )
@@ -159,6 +166,7 @@ void CSocket::ngx_wait_request_handler_proc_p1(lpngx_connection_t c)
         //重新收包头
         c->precvbuf = c->dataHeadInfo;
         c->irecvlen = m_iLenPkgHeader;
+        return ;
     }
     //认为客户端不会发来包长度大于_PKG_MAX_LENGTH-1000的包
     else if( e_pkgLen > ( _PKG_MAX_LENGTH - 1000 ) ) 
@@ -166,14 +174,14 @@ void CSocket::ngx_wait_request_handler_proc_p1(lpngx_connection_t c)
         c->curStat = _PKG_HD_INIT;
         c->precvbuf = c->dataHeadInfo;
         c->irecvlen = m_iLenPkgHeader;
+        return ;
     }
     //合法的包头
     else 
     {
-        //new出一段内存来接收包体。内存大小为消息头大小+整包大小（包括包头）。
+        //new出一段内存来收包。内存大小为消息头大小+整包大小（包括包头）。
         char* pTmpBuffer = (char*)p_memory->AllocMemory(m_iLenMsgHeader+e_pkgLen,false);
-        c->ifnewrecvMem = true;
-        c->pnewMemPointer = pTmpBuffer;
+        c->precvMemPointer = pTmpBuffer;
 
         LPSTRUC_MSG_HEADER ptmpMsgHeader = (LPSTRUC_MSG_HEADER)pTmpBuffer;
         //填写消息头内容
@@ -202,19 +210,11 @@ void CSocket::ngx_wait_request_handler_proc_p1(lpngx_connection_t c)
 //一个包收完整后的触发函数
 void CSocket::ngx_wait_request_handler_proc_plast(lpngx_connection_t c)
 {
-    // //把这段内存放到消息队列中来
-    // int irmqc = 0;      //消息队列当前信息数量
-    // //消息头+包头+包体的内容的内存首地址就存在了c->pnewMemPointer里面。
-    // //主线程一条线程下来把这个消息(收到的完整的包)扔到消息队列中来
-    // inMsgRecvQueue(c->pnewMemPointer,irmqc);
-    // //激发线程池中的某个线程来处理业务逻辑
-    // g_threadpool.Call(irmqc);
-
-    g_threadpool.inMsgRecvQueueAndSignal(c->pnewMemPointer);    //入消息队列并激发一个线程来处理消息
+    //消息头+包头+包体的内容的内存首地址就存在了c->precvMemPointer里面。
+    g_threadpool.inMsgRecvQueueAndSignal(c->precvMemPointer);    //入消息队列并激发一个线程来处理消息
 
     //为收下一个包做准备
-    c->ifnewrecvMem = false;            //对于加入到了消息队列中的存放包的数据的内存，就在消息队列中释放了，因此这里ifnewrecvMem置为false
-    c->pnewMemPointer = NULL;
+    c->precvMemPointer = NULL;
     c->curStat = _PKG_HD_INIT;
     c->precvbuf = c->dataHeadInfo;
     c->irecvlen = m_iLenPkgHeader;
@@ -251,4 +251,95 @@ void CSocket::threadRecvProcFunc(char* pMsgBuf)
     return ;
 }
 
+//发送数据专用函数，返回本次发送的字节数。返回值：
+// > 0：成功发送了一些字节；
+// == -1：errno == EAGAIN, 本方发送缓冲区满了
+// == -2：errno != EAGAIN != EWOULDBLOCK != EINTR， 应该都是对端断开的错误
+ssize_t CSocket::sendproc(lpngx_connection_t c, char* buff, ssize_t size)
+{
+    //这里参考了官方nginx函数ngx_unix_send()的写法。
+    ssize_t n;
+    
+    while( 1 )
+    {
+        n = send(c->fd, buff, size, 0);
+        if( n > 0 )
+        {
+            //成功发送了一些数据，至于发送了多少，这里不关心，也不需要再次send
+            //（1）n == size，也就是想发送多少数据都发送成功了，这表示完全发送完毕了
+            //（2）n < size，没发送完毕，那肯定是发送缓冲区满了，所以也不必重试发送，直接返回
+            return n;   //返回本次发送的字节数
+        }
+        if( n == 0 )
+        {
+            //send()返回0？一般recv()返回0表示断开，send()返回0，这里就直接返回0吧，让调用者处理；
+            //网上找资料：send==0表示超时，对方主动关闭了连接过程
+            //我们写代码遵循一个原则，连接断开，我们并不在send()动作里面处理诸如关闭socket这种动作，集中到recv那里处理，
+            //连接断开epoll会通知并且recvproc()里会处理，不用在这里处理。
+            return 0;
+        }
+        if( errno == EAGAIN )
+        {
+            //内核发送缓冲区满
+            return -1;
+        }
+        if( errno == EINTR )
+        {
+            //参考官方的写法，打印个日志，其他啥也没干，那就是等下次for循环重新send试一次了。
+            printf("CSocket::sendproc()中send()失败\n");
+        }
+        else 
+        {
+            //errno 既不是EAGAIN 也不是 EINTR
+            return -2;
+        }
+    }//end while(1)
+
+}
+ 
+//该函数是epoll对象上与客户端连接对应的套接字描述符上面的写事件的处理函数。
+void CSocket::ngx_write_request_handler(lpngx_connection_t pConn)
+{
+    printf("调用了ngx_write_request_handler()\n");
+    CMemory* p_memory = CMemory::getInstance();
+    ssize_t sendsize = sendproc(pConn,pConn->psendBuf,pConn->isendLen);
+    //没有全部发送完毕，数据只发送出去了一部分，等下次fd上还有写就绪，再次调用该函数发送。
+    if( sendsize > 0 && sendsize != pConn->isendLen )
+    {
+        pConn->psendBuf = pConn->psendBuf + sendsize;
+        pConn->isendLen = pConn->isendLen - sendsize;
+        return ;
+    }
+    else if( sendsize == -1 )
+    {
+        printf("CSocket::ngx_write_request_handler()时if( sendsize == -1 )成立了，这很奇怪。\n");
+        return ;
+    }
+    //数据成功发送完毕
+    else if( sendsize > 0 && sendsize == pConn->isendLen )
+    {
+        //把写事件从fd上去掉
+        if( ngx_epoll_ope_event(
+                                pConn->fd,
+                                EPOLL_CTL_MOD,
+                                EPOLLOUT,
+                                1,
+                                pConn
+                                ) == -1 )
+        {
+            printf("CSocket::ngx_write_request_handler()中ngx_epoll_oper_evgent()失败!\n");
+        }
+        printf("CSocket::ngx_write_request_handler()中数据发送完毕，并将epoll上相应fd的写事件去掉了\n");
+    }
+
+    //程序走到这里，要么数据发送完了，要么对方断开了连接(else if(sendsize == 0))
+    if( sem_post(&m_semEventSendQueue) == -1 )
+    {
+        printf("CSocket::ngx_write_request_handler()中sem_post(&m_semEventSendQueue)失败!\n");
+    }
+    p_memory->FreeMemory(pConn->psendMemPointer);
+    pConn->psendMemPointer = NULL;
+    --pConn->iThrowsendCount;
+    return ;
+}
 

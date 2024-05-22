@@ -4,6 +4,8 @@
 #include "ngx_global.h"
 #include "ngx_c_socket.h"
 
+#define _CMD_REGISTER 5
+
 class CLogicSocket : public CSocket
 {
 public:

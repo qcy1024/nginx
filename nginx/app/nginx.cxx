@@ -27,6 +27,8 @@ pid_t ngx_parent;       //当前进程的父进程的pid
 int g_daemonized = 0;   //标志进程是否启用了守护进程模式
 
 int ngx_process;        //进程类型，比如worker进程，master进程等。
+int g_stopEvent;        //整个程序退出标志。0不退出，1退出
+
 sig_atomic_t ngx_reap;  //sig_atomic_t是系统定义的一种原子类型。
 
 
@@ -46,7 +48,6 @@ int main(int argc,char* argv[],char* environ[])
 
     ngx_process = NGX_PROCESS_MASTER;
 
-    //2）初始化失败就要直接退出的
     //获取一个单例类对象指针，用于读取并解析配置文件
     p_config = CConfig::getInstance();
     //CConfig的单例类对象p_config通过其成员m_ConfigItemList保存的所有的配置文件条目。
@@ -71,7 +72,7 @@ int main(int argc,char* argv[],char* environ[])
     // printf("条目%s，内容是%d\n条目%s，内容是%s\n","ListenPort",p_config->getIntDefault("ListenPort",10),
     //     "DBInfo",p_config->getString("DBInfo"));
 
-    //3）一些初始化函数准备放这里
+    //一些初始化函数
     ngx_log_init(p_config);
     if( ngx_init_signals() != 1 )
     {
@@ -86,10 +87,8 @@ int main(int argc,char* argv[],char* environ[])
         return 1;
     }
 
-    //4)一些不好归类的其他代码放在这里
 
-
-    //5)创建守护进程
+    //创建守护进程
     // if( p_config->getIntDefault("Daemon",0) == 1 )
     // {
     //     int ret = nginx_daemon();     //父进程返回1，子进程返回0，出错返回-1

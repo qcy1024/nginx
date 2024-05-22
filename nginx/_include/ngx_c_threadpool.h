@@ -46,7 +46,7 @@ private:
 
     //消息队列
     std::list<char*>                 m_MsgRecvQueue;        //接收数据消息队列
-    int                              m_iRecvMsgQueueCount;  //收消息队列大小
+    int                              m_iRecvMsgQueueCount;  //消息队列目前的消息数量
 
 };
 

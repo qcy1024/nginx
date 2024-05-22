@@ -3,6 +3,7 @@
 #include "ngx_macro.h"
 #include "ngx_c_socket.h"
 #include "ngx_c_slogic.h"
+#include "ngx_c_comm.h"
 
 extern CLogicSocket g_socket;       //socket全局对象
 extern CThreadPool g_threadpool;   //线程池全局对象
@@ -16,7 +17,6 @@ bool CThreadPool::m_shutdown = false;
 CThreadPool::CThreadPool()
 {
     m_iRunningThreadNum = 0;        //正在运行的线程数
-    m_iLastEmgTime = 0;             //上次报告线程不够用了的时间
 }
 
 //析构函数
@@ -51,7 +51,7 @@ bool CThreadPool::Create(int threadNum)
         }
         else 
         {
-            //创建线程成功
+            //printf("创建线程%d成功了\n",i);
         }
 
     }//end of for
@@ -101,8 +101,12 @@ void* CThreadPool::ThreadFunc(void* threadData)
         pThread->ifrunning = true;
         
         //printf("目前消息队列中的消息数量是:%d\n",g_socket.getMsgRecvQueue().size());
-        
         pthread_cond_wait(&m_pthreadCond,&m_pthreadMutex);
+        jobbuf=g_socket.outMsgRecvQueue();
+        ++pThreadPoolObj->m_iRunningThreadNum;     
+        printf("线程池中的一个线程开始执行任务了！tid=%lu\n",tid); 
+        sleep(2);
+        printf("线程池中的一个线程执行完任务了！tid=%lu\n",tid);
         err = pthread_mutex_unlock(&m_pthreadMutex);
         if( err != 0 )
         {
@@ -112,11 +116,6 @@ void* CThreadPool::ThreadFunc(void* threadData)
         {
             printf("线程tid=%lu释放了锁m_pthreadMutex\n",tid);
         }
-        jobbuf=g_socket.outMsgRecvQueue();
-        ++pThreadPoolObj->m_iRunningThreadNum;     
-        printf("线程池中的一个线程开始执行任务了！tid=%lu\n",tid); 
-        sleep(2);
-        printf("线程池中的一个线程执行完任务了！tid=%lu\n",tid);
         p_memory->FreeMemory(jobbuf);               
         --pThreadPoolObj->m_iRunningThreadNum;      
     }
@@ -221,7 +220,6 @@ void CThreadPool::StopAll()
 
     //printf("CThreadPool::StopAll()成功返回，线程池中线程全部正常结束!\n");
     return ;
-
 }
 
 void CThreadPool::inMsgRecvQueueAndSignal(char* buf)
@@ -230,10 +228,13 @@ void CThreadPool::inMsgRecvQueueAndSignal(char* buf)
     int err = pthread_mutex_lock(&m_pthreadMutex);
     if( err != 0 )
     {
-        printf("CThreadPool::inMsgRecvQueueAndSignal()中，pthread_mutex_lock()失败!,错误码为%d\n");
+        printf("CThreadPool::inMsgRecvQueueAndSignal()中，pthread_mutex_lock()失败!,错误码为%d\n",err);
     }
     m_MsgRecvQueue.push_back(buf);
-    printf("将消息%s加入消息队列成功，此时消息队列中有%lu条消息。\n",buf,m_MsgRecvQueue.size());
+    COMM_PKG_HEADER* tmp_pPkgHeader = (LPCOMM_PKG_HEADER)(buf + sizeof(struct _STRUC_MSG_HEADER));
+    //%hu打印 unsigned short 类型
+    printf("将一条类型为%hu的消息加入消息队列成功，此时消息队列中有%lu条消息。\n"
+        ,ntohs(tmp_pPkgHeader->msgCode),m_MsgRecvQueue.size());
     ++m_iRecvMsgQueueCount;
 
     //取消互斥
@@ -261,7 +262,5 @@ void CThreadPool::Call()
     {
         printf("CThreadPool::Call()中发现空闲线程数量为0，考虑一下扩容线程？\n");
     }
-
-
 
 }

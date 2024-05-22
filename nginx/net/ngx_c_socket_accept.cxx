@@ -103,22 +103,36 @@ void CSocket::ngx_event_accept(lpngx_connection_t oldc)
         newc->listening = oldc->listening;
         newc->w_ready = 1;
 
-        //设置来数据时的处理函数
-        newc->rhandler = &CSocket::ngx_wait_request_handler;
+        //设置读写事件就绪时的处理函数
+        newc->rhandler = &CSocket::ngx_read_request_handler;    //recvproc(), inMsgQueue()
+        newc->whandler = &CSocket::ngx_write_request_handler;   //写事件中调用sendproc()发送数据
 
         //把客户端的套接字描述符加到epoll对象上来
         //在ngx_epoll_add_event()函数中需要把指针newc传进去的原因是，要在epoll事件中记录相应的事件处理函数(epoll的事件类型events就保存了
         //该事件的处理函数)。
-        if( ngx_epoll_add_event(s,
-                                1,0,
-                                //EPOLLET,        //这个标记将epoll设置为边缘触发
-                                0,
-                                EPOLL_CTL_ADD,
-                                newc ) == -1 )
+        // if( ngx_epoll_add_event(s,
+        //                         1,0,
+        //                         //EPOLLET,        //这个标记将epoll设置为边缘触发
+        //                         0,
+        //                         EPOLL_CTL_ADD,
+        //                         newc ) == -1 )
+        // {
+        //     ngx_close_connection(newc);
+        //     return ;
+        // }
+
+        if( ngx_epoll_ope_event(
+                                s,                      //socket
+                                EPOLL_CTL_ADD,          
+                                EPOLLIN|EPOLLRDHUP,     //设置关注事件为EPOLLIN(可读)以及EPOLLRDHUP(TCP连接断开)
+                                0,                      //对于EPOLL_CTL_ADD，不需要这个参数
+                                newc                    //连接
+                                ) == -1 )
         {
             ngx_close_connection(newc);
             return ;
         }
+
         break;
     } while (1);
 

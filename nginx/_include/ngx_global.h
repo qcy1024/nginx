@@ -7,6 +7,7 @@
 #include <list>
 #include <netinet/in.h>
 #include <pthread.h>
+#include <semaphore.h>
 #include <stdarg.h>
 #include <signal.h>
 #include <sys/wait.h>
